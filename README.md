@@ -4,7 +4,7 @@ Go over to the Google sheets page and start at the start menu inside the Sheet!!
 
 ![SHEETS](https://img.shields.io/badge/SHEETS-CLICKR%20V1-blue?style=plastic&logo=googlesheets)
 
-![Game Screenshot!!!](/Google_Sheets-Clicker-V1)
+![Game Screenshot!!!](Google_Sheets-Clicker-V1.png)
 
 ## Try it
 [Here!](https://docs.google.com/spreadsheets/d/178rJUgnBQ6P2bIiCEkGyC4okPgRv_2OL0KbRsQkarxs/edit?usp=sharing)
