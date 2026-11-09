@@ -1,4 +1,4 @@
-# Project name
+# Google Clicker Vidk!!!
 ### This is a Google sheets Clicker game made for Hack Club Wrong YSWS!
 Go over to the Google sheets page and start at the start menu inside the Sheet!!! TYSM and made with <3 for and by Hack Club!
 
