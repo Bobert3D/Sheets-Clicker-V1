@@ -7,11 +7,11 @@ Go over to the Google sheets page and start at the start menu inside the Sheet!!
 ![Game Screenshot!!!](/Google_Sheets-Clicker-V1)
 
 ## Try it
-https://example.com
+[Here!](https://docs.google.com/spreadsheets/d/178rJUgnBQ6P2bIiCEkGyC4okPgRv_2OL0KbRsQkarxs/edit?usp=sharing)
 
 ## Features
-- The thing it does
-- The other thing it does
+- Bro it's a clicker game in Google sheets what more do I have to say???
+- The other thing it does??? WHAT MORE????!!
 
 ## Running on:
 Google Sheets with a backend Google Apps Scripts
