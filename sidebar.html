@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html>
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<style>
+*{box-sizing:border-box;font-family:Roboto,Arial,sans-serif}
+body{margin:0;padding:14px;font-size:13px;color:#202124}
+h3{text-align:center;margin:0 0 12px;padding-bottom:8px;border-bottom:2px solid #34a853}
+input{width:100%;padding:9px;margin-bottom:8px;border:1px solid #c7c7c7;border-radius:6px;font-size:14px}
+button{cursor:pointer;border:0;border-radius:8px;width:100%;font-weight:600}
+.pri{background:#1a73e8;color:#fff;padding:10px;margin-bottom:8px}
+.sec{background:#fff;border:1px solid #c7c7c7;padding:10px;margin-bottom:8px}
+#clk{background:#34a853;color:#fff;padding:22px;font-size:22px;border-radius:12px;box-shadow:0 4px #247d3c;margin-bottom:12px;user-select:none}
+#clk:active{transform:translateY(3px);box-shadow:0 1px #247d3c}
+.up{background:#1a73e8;color:#fff;padding:11px;margin-top:8px}.up:disabled{background:#dadce0;color:#80868b;cursor:not-allowed}
+#stats{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:12px}
+.st{background:#e8f0fe;border-radius:6px;padding:6px 8px}.st b{display:block;font-size:16px;color:#1a73e8}
+#lb{margin-top:16px;background:#f8f9fa;border:1px solid #e0e0e0;border-radius:8px;padding:10px}
+#lb h4{margin:0 0 8px;text-align:center}
+.row{display:flex;justify-content:space-between;background:#fff;border:1px solid #f1f3f4;border-radius:4px;padding:5px 8px;margin-bottom:3px}
+.row.me{border-color:#1a73e8;background:#e8f0fe}
+#err,#msg{color:#d93025;min-height:16px;font-size:12px;margin-bottom:6px}
+small{color:#70757a;display:block;margin-top:10px;text-align:center}
+.hide{display:none}
+</style>
+</head>
+<body>
+<h3>Clicker Menu!</h3>
+
+<div id="authView">
+  <input id="un" placeholder="Username (2-16 letters, numbers, _)" autocomplete="username">
+  <input id="pw" type="password" placeholder="Password (4+ characters)" autocomplete="current-password">
+  <div id="err"></div>
+  <button class="pri" id="bIn">Sign in</button>
+  <button class="sec" id="bUp">Create account</button>
+  <small>Accounts are stored in this spreadsheet's script. Don't reuse a real password.</small>
+</div>
+
+<div id="gameView" class="hide">
+  <div style="text-align:center;margin-bottom:10px">👤 <b id="me"></b> · <a href="#" id="out">sign out</a></div>
+  <div id="stats">
+    <div class="st">Score<b id="sScore">0</b></div>
+    <div class="st">Per click<b id="sMult">1</b></div>
+    <div class="st">Total earned<b id="sEarn">0</b></div>
+    <div class="st">Auto / sec<b id="sAuto">0</b></div>
+  </div>
+  <button id="clk">CLICK ME!..or not?..</button>
+  <button class="up" id="upM"></button>
+  <button class="up" id="upA"></button>
+  <div id="msg"></div>
+  <div id="lb"><h4>Leaderboard</h4><div id="lbl"></div></div>
+  <small>Your stats are also in the <b>Players</b> sheet. Use them in formulas!</small>
+</div>
+
+<script>
+let me = null, tok = null, S = null, ops = [], busy = false;
+const $ = id => document.getElementById(id);
+const run = (fn, ...a) => new Promise((ok, no) =>
+  google.script.run.withSuccessHandler(ok).withFailureHandler(e => no(e)) [fn](...a));
+const fmt = n => Math.round(n).toLocaleString();
+
+function show(authed) {
+  $('authView').classList.toggle('hide', authed);
+  $('gameView').classList.toggle('hide', !authed);
+}
+function msg(t) { $('msg').textContent = t || ''; if (t) setTimeout(() => $('msg').textContent === t && ($('msg').textContent = ''), 2500); }
+
+function render() {
+  if (!S) return;
+  $('sScore').textContent = fmt(S.score); $('sMult').textContent = S.mult;
+  $('sEarn').textContent = fmt(S.earned); $('sAuto').textContent = S.auto;
+  $('upM').textContent = 'Upgrade multiplier (Cost: ' + fmt(S.cost) + ')'; $('upM').disabled = S.score < S.cost;
+  $('upA').textContent = 'Auto-clicker +1/sec (Cost: ' + fmt(S.autoCost) + ')'; $('upA').disabled = S.score < S.autoCost;
+}
+
+function start(res) {
+  me = res.name; tok = res.token; S = res.state;
+  try { localStorage.setItem('wt_sess', JSON.stringify({ n: me, t: tok })); } catch (e) {}
+  $('me').textContent = me; $('err').textContent = ''; $('pw').value = '';
+  show(true); render(); loadBoard();
+}
+function logout() {
+  me = tok = S = null; ops = [];
+  try { localStorage.removeItem('wt_sess'); } catch (e) {}
+  show(false);
+}
+function fail(e) {
+  const m = (e && e.message || String(e)).replace(/^Error:\s*/, '');
+  if (/sign in again/i.test(m)) { logout(); $('err').textContent = m; } else { $('err').textContent = m; msg(m); }
+}
+
+async function auth(create) {
+  $('err').textContent = '';
+  try { start(await run(create ? 'register' : 'login', $('un').value.trim(), $('pw').value)); }
+  catch (e) { fail(e); }
+}
+
+let timer = null;
+function schedule(ms, force) {
+  if (force && timer) { clearTimeout(timer); timer = null; }
+  if (!timer) timer = setTimeout(() => { timer = null; flush(); }, ms);
+}
+function replay(list) { 
+  list.forEach(o => {
+    if (o[0] === 'c') { S.score += S.mult * o[1]; S.earned += S.mult * o[1]; }
+    else localBuy(o[0]);
+  });
+}
+async function flush() {
+  if (!me) return;
+  if (busy) { schedule(250); return; }
+  const sent = ops; ops = []; busy = true;
+  try { S = await run('syncAll', me, tok, sent); replay(ops); }
+  catch (e) { fail(e); }
+  busy = false; render();
+  if (ops.length) schedule(250);
+}
+function localBuy(what) {
+  if (what === 'mult') { if (S.score < S.cost) return false; S.score -= S.cost; S.mult++; S.cost = Math.round(S.cost * 1.6); }
+  else { if (S.score < S.autoCost) return false; S.score -= S.autoCost; S.auto++; S.autoCost = Math.round(S.autoCost * 1.8); }
+  return true;
+}
+function buy(what) {
+  if (!S || !localBuy(what)) return;
+  ops.push([what]); render(); schedule(250, true);
+}
+
+async function loadBoard() {
+  try {
+    const rows = await run('getBoard');
+    $('lbl').innerHTML = '';
+    rows.slice(0, 8).forEach((r, i) => {
+      const d = document.createElement('div');
+      d.className = 'row' + (r.name === me ? ' me' : '');
+      const a = document.createElement('span'); a.textContent = (i + 1) + '. ' + r.name;
+      const b = document.createElement('b'); b.textContent = fmt(r.earned);
+      d.append(a, b); $('lbl').appendChild(d);
+    });
+  } catch (e) {}
+}
+
+$('clk').addEventListener('click', () => { if (!S) return; S.score += S.mult; S.earned += S.mult; const l = ops[ops.length - 1]; if (l && l[0] === 'c') l[1]++; else ops.push(['c', 1]); render(); schedule(1500); });
+$('upM').addEventListener('click', () => buy('mult'));
+$('upA').addEventListener('click', () => buy('auto'));
+$('bIn').addEventListener('click', () => auth(false));
+$('bUp').addEventListener('click', () => auth(true));
+$('pw').addEventListener('keydown', e => { if (e.key === 'Enter') auth(false); });
+$('out').addEventListener('click', e => { e.preventDefault(); logout(); });
+
+setInterval(() => { if (S && S.auto) { S.score += S.auto; S.earned += S.auto; render(); } }, 1000);
+setInterval(flush, 5000);       
+setInterval(loadBoard, 10000);
+
+(async function () {
+  try {
+    const s = JSON.parse(localStorage.getItem('wt_sess') || 'null');
+    if (s) { const st = await run('syncAll', s.n, s.t, []); start({ name: s.n, token: s.t, state: st }); }
+  } catch (e) { logout(); }
+})();
+</script>
+</body>
+</html>
